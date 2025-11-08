@@ -1,16 +1,21 @@
 #!/bin/bash
-cd ~/xau-sentinel
 
-echo "🔍 CEK PERUBAHAN FILE..."
-if [[ -n $(git status --porcelain) ]]; then
-  git add .
-  git commit -m "Auto-sync: $(date '+%Y-%m-%d %H:%M:%S')"
-  git push origin main
-  echo "✅ Sinkron GitHub selesai."
-else
-  echo "⏩ Tidak ada perubahan, skip push."
-fi
+PROJECT_DIR="$HOME/xau-sentinel"
+cd "$PROJECT_DIR" || exit 1
 
-echo "⚙️ Deploy ke Railway..."
-railway up --detach
-echo "✅ Railway berhasil di-deploy!"
+while true; do
+  echo "⏳ Mengecek sinkronisasi dengan GitHub..."
+
+  git pull --rebase
+
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    git add .
+    git commit -m "AutoSync: $(date '+%Y-%m-%d %H:%M:%S')" >/dev/null 2>&1
+    git push origin main
+    echo "✅ Perubahan otomatis dikirim ke GitHub ($(date))"
+  else
+    echo "✔ Sudah sinkron ($(date))"
+  fi
+
+  sleep 60
+done

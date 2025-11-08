@@ -50,3 +50,25 @@ Already up to date.
 Already up to date.
 ⏳ Cek sinkron (Sat Nov  8 15:35:26 WIB 2025)...
 ⏳ Cek sinkron (Sat Nov  8 15:35:26 WIB 2025)...
+On branch main
+Your branch is ahead of 'origin/main' by 1 commit.
+  (use "git push" to publish your local commits)
+
+nothing to commit, working tree clean
+[main af46d86] AutoSync-local: 2025-11-08 15:35:26
+ 3 files changed, 108 insertions(+), 25 deletions(-)
+fatal: Cannot rebase onto multiple branches.
+fatal: Cannot rebase onto multiple branches.
+⚠️ Rebase gagal — fallback merge (Sat Nov  8 15:35:27 WIB 2025)
+⚠️ Rebase gagal — fallback merge (Sat Nov  8 15:35:27 WIB 2025)
+Already up to date.
+Already up to date.
+To https://github.com/medenx/xau-sentinel.git
+   1dffcc0..af46d86  main -> main
+To https://github.com/medenx/xau-sentinel.git
+ ! [remote rejected] main -> main (cannot lock ref 'refs/heads/main': is at af46d86907ec90e44e3efa03139a2b3c82fa7087 but expected 1dffcc0fcbd1d1d541c3a916e8765cde93a2f79f)
+error: failed to push some refs to 'https://github.com/medenx/xau-sentinel.git'
+✅ Push ke origin/main (Sat Nov  8 15:35:29 WIB 2025)
+❌ Push origin gagal (Sat Nov  8 15:35:29 WIB 2025)
+⏳ Cek sinkron (Sat Nov  8 15:36:29 WIB 2025)...
+⏳ Cek sinkron (Sat Nov  8 15:36:29 WIB 2025)...

@@ -1,23 +1,21 @@
 #!/bin/bash
 ROOT="$HOME/xau-sentinel"
-PLAN_FILE="$ROOT/plans/$(date +%F).md"
-LOG_FILE="$ROOT/.price.log"
+PLAN="$ROOT/plans/$(date +%F).md"
+LOG="$ROOT/.price.log"
 
-# Load token Telegram & API Key FCS
-source "$ROOT/.env"
+log(){ echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG"; }
 
-# Fungsi ambil harga XAUUSD real-time via FCS API
+# ✅ Sumber harga: Metals.live (tidak perlu API key / IP whitelist)
 get_price() {
-  curl -s "https://fcsapi.com/api-v3/forex/latest?symbol=XAU/USD&access_key=$FCS_API_KEY" \
-  | grep -o '"price":[0-9]*\.[0-9]*' | head -1 | cut -d':' -f2
+  curl -s https://api.metals.live/v1/spot/gold \
+  | grep -o '[0-9]*\.[0-9]*' \
+  | head -1
 }
 
-# Ambil Key Level dari plan harian
+# Ambil Key Level dari Plan
 get_key_levels() {
-  grep -i "Key Level" "$PLAN_FILE" | cut -d':' -f2- | tr -d ' ' | tr '/' ' '
+  grep -i "Key Level" "$PLAN" | cut -d':' -f2- | tr -d ' ' | tr '/' ' ' | tr ',' ' '
 }
-
-log(){ echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
 
 log "=== PRICE ALERT STARTED ($(date)) ==="
 
@@ -25,28 +23,30 @@ while true; do
   PRICE=$(get_price)
 
   if [ -z "$PRICE" ]; then
-    log "⚠️ Gagal ambil harga dari FCSAPI"
+    log "⚠️ Gagal ambil harga dari Metals.live"
     sleep 60
     continue
   fi
 
-  log "✅ Harga XAUUSD: $PRICE"
+  log "✅ Harga XAUUSD sekarang: $PRICE"
 
   LEVELS=$(get_key_levels)
+
   for LEVEL in $LEVELS; do
     DIFF=$(echo "$PRICE - $LEVEL" | bc)
     ABS_DIFF="${DIFF#-}"
 
-    # Jika harga mendekati Key Level (jarak < 0.50)
-    if (( $(echo "$ABS_DIFF < 0.50" | bc -l) )); then
+    if (( $(echo "$ABS_DIFF < 0.5" | bc -l) )); then
+      source "$ROOT/.env"
       MSG="⚠️ XAUUSD mendekati Key Level $LEVEL
-Harga sekarang: $PRICE
-Perhatikan potensi sweep/rejection."
+Harga: $PRICE
+Perhatikan sweep/rejection."
+
       curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
         -d chat_id="$TELEGRAM_CHAT_ID" \
         --data-urlencode text="$MSG" >/dev/null
 
-      log "📨 ALERT DIKIRIM: Level $LEVEL | Price $PRICE"
+      log "📨 ALERT DIKIRIM (Level=$LEVEL | Price=$PRICE)"
     fi
   done
 

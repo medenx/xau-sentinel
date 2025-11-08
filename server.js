@@ -28,9 +28,9 @@ async function pollTelegram() {
       const chatId = msg.chat.id;
       const text = msg.text.trim();
       if (text === "/start") {
-        await sendTelegramMessage("✅ Bot aktif, siap membantu!", chatId);
+        await sendTelegramMessage("✅ Bot aktif dan siap!", chatId);
       } else {
-        await sendTelegramMessage(`Pesan diterima: ${text}`, chatId);
+        await sendTelegramMessage(`📩 Pesan diterima: ${text}`, chatId);
       }
     }
   } catch (err) {

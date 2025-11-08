@@ -1,20 +1,21 @@
 #!/bin/bash
 ROOT="$HOME/xau-sentinel"
-PLAN="$ROOT/plans/$(date +%F).md"
-LOG="$ROOT/.price.log"
+PLAN_FILE="$ROOT/plans/$(date +%F).md"
+LOG_FILE="$ROOT/.price.log"
 
-# Ambil harga dari TradingView
+# 1. Sumber Harga: Metals.live (Gratis, no API Key)
 get_price() {
-  curl -s "https://api.tradingview.com/markets/quotes?symbols=OANDA:XAUUSD" \
-  | grep -o '"lp":[0-9]*\.[0-9]*' | head -1 | cut -d: -f2
+  PRICE=$(curl -s https://api.metals.live/v1/spot/gold | grep -o '[0-9]*\.[0-9]*' | head -1)
+  echo "$PRICE"
 }
 
-# Ambil key level dari trading plan
+# 2. Ambil Key Level dari Trading Plan
 get_key_levels() {
-  grep -i "Key Level" "$PLAN" | cut -d':' -f2- | tr -d ' ' | tr '/' ' '
+  grep -i "Key Level" "$PLAN_FILE" | cut -d':' -f2- | tr -d ' ' | tr '/' ' ' | tr ',' ' '
 }
 
-log(){ echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG"; }
+# 3. Function Logging
+log() { echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
 
 log "=== PRICE ALERT STARTED ($(date)) ==="
 
@@ -22,28 +23,29 @@ while true; do
   PRICE=$(get_price)
 
   if [ -z "$PRICE" ]; then
-    log "⚠️ Gagal ambil harga (TradingView tidak merespon)"
+    log "⚠️ Gagal ambil harga emas"
     sleep 60
     continue
   fi
+
+  log "✅ Harga XAUUSD: $PRICE"
 
   LEVELS=$(get_key_levels)
 
   for LEVEL in $LEVELS; do
     DIFF=$(echo "$PRICE - $LEVEL" | bc)
-    ABS_DIFF=$(echo "${DIFF#-}")
+    ABS_DIFF="${DIFF#-}"
 
     if (( $(echo "$ABS_DIFF < 0.50" | bc -l) )); then
       source "$ROOT/.env"
-      MSG="⚠️ XAUUSD dekat Key Level $LEVEL
-Harga saat ini: $PRICE
-Cek kemungkinan sweep atau rejection."
-      
+      MSG="⚠️ XAUUSD mendekati Key Level: $LEVEL
+Harga sekarang: $PRICE
+Perhatikan potensi sweep/rejection."
       curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
         -d chat_id="$TELEGRAM_CHAT_ID" \
         --data-urlencode text="$MSG" >/dev/null
 
-      log "📨 ALERT DIKIRIM: Level $LEVEL, Price $PRICE"
+      log "📨 ALERT DIKIRIM: Key $LEVEL | Price $PRICE"
     fi
   done
 

@@ -1,49 +1,39 @@
 import express from "express";
 import fetch from "node-fetch";
+import dotenv from "dotenv";
+dotenv.config();
 
 const app = express();
 const PORT = 3000;
+const ALPHA = process.env.ALPHA_KEY;
 
-// === 1) Yahoo Finance ===
-const fetchYahoo = async () => {
+// === Source 1: Yahoo Finance ===
+const yahoo = async () => {
   try {
     const r = await fetch("https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD=X");
     const d = await r.json();
     return d.quoteResponse?.result[0]?.regularMarketPrice || null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 };
 
-// === 2) GoldAPI (metals.live) ===
-const fetchGoldAPI = async () => {
+// === Source 2: AlphaVantage ===
+const alpha = async () => {
   try {
-    const r = await fetch("https://api.metals.live/v1/spot/gold");
+    const r = await fetch(
+      `https://www.alphavantage.co/query?function=COMMODITY_EXCHANGE_RATE&from_symbol=XAU&to_symbol=USD&apikey=${ALPHA}`
+    );
     const d = await r.json();
-    return d[0]?.price || null;
-  } catch {
-    return null;
-  }
-};
-
-// === 3) FMP API ===
-const fetchFMP = async () => {
-  try {
-    const r = await fetch("https://financialmodelingprep.com/api/v3/quote/XAUUSD?apikey=demo");
-    const d = await r.json();
-    return d[0]?.price || null;
-  } catch {
-    return null;
-  }
+    return parseFloat(d["5. Exchange Rate"]) || null;
+  } catch { return null; }
 };
 
 app.get("/xau", async (_, res) => {
-  let price = await fetchYahoo();
-  if (!price) price = await fetchGoldAPI();
-  if (!price) price = await fetchFMP();
-
+  let price = await yahoo();
+  if (!price) price = await alpha();
   if (!price) return res.json({ error: "Semua sumber gagal" });
   res.json({ price });
 });
 
-app.listen(PORT, () => console.log(`✅ Proxy XAU aktif di port ${PORT}`));
+app.listen(PORT, () =>
+  console.log(`✅ Proxy XAU aktif di port ${PORT}`)
+);

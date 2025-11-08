@@ -83,3 +83,19 @@ if git -C "$ROOT" commit -m "Analysis $(date +%F-%H:%M:%S)" >/dev/null 2>&1; the
 else
   log "ℹ Tidak ada perubahan baru — skip push"
 fi
+# 7. Kirim Telegram jika token & chat ID tersedia
+if [ -f "$ROOT/.env" ]; then
+  source "$ROOT/.env"
+  curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+    -d chat_id="$TELEGRAM_CHAT_ID" \
+    --data-urlencode text@"$ANALYZE" >/dev/null 2>&1 && \
+    log "📨 Terkirim ke Telegram" || log "⚠ Gagal kirim Telegram"
+fi
+
+# 8. Push GitHub hanya jika ada commit baru
+git -C "$ROOT" add "$ANALYZE" >/dev/null 2>&1
+if git -C "$ROOT" commit -m "Analysis $(date +%F-%H:%M:%S)" >/dev/null 2>&1; then
+  git -C "$ROOT" push origin main >/dev/null 2>&1 && log "✅ Push ke GitHub" || log "⚠ Push gagal"
+else
+  log "ℹ Tidak ada perubahan baru — skip push"
+fi

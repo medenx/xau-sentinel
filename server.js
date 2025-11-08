@@ -3,12 +3,11 @@ const bodyParser = require("body-parser");
 require("dotenv").config();
 const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
 const { sendTelegramMessage } = require("./utils/telegram");
+const app = express();
+app.use(bodyParser.json());
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 let last_update_id = 0;
-
-const app = express();
-app.use(bodyParser.json());
 
 app.get("/", (req, res) => res.send("✅ Server & Polling Aktif"));
 
@@ -22,20 +21,18 @@ async function pollTelegram() {
     const res = await fetch(`https://api.telegram.org/bot${TOKEN}/getUpdates?offset=${last_update_id + 1}`);
     const data = await res.json();
     if (!data.ok || !data.result) return;
-
-    data.result.forEach(async (update) => {
+    for (const update of data.result) {
       last_update_id = update.update_id;
       const msg = update.message;
-      if (!msg || !msg.text) return;
+      if (!msg || !msg.text) continue;
       const chatId = msg.chat.id;
       const text = msg.text.trim();
-
       if (text === "/start") {
         await sendTelegramMessage("✅ Bot aktif, siap membantu!", chatId);
       } else {
         await sendTelegramMessage(`Pesan diterima: ${text}`, chatId);
       }
-    });
+    }
   } catch (err) {
     console.log("Polling error:", err.message);
   }

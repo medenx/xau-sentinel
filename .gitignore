@@ -5,3 +5,8 @@ npm-debug.log*
 .env
 .env
 .env
+.env
+server.log
+npm-debug.log
+*.bak
+*.old

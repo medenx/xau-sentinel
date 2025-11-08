@@ -1,45 +1,43 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const { sendTelegramMessage } = require("./utils/telegram");
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 require("dotenv").config();
+const { sendTelegramMessage } = require("./utils/telegram");
 
 const app = express();
 app.use(bodyParser.json());
 
 // Root endpoint
 app.get("/", (req, res) => {
-  res.send("✅ XAU-Sentinel Aktif & Stabil");
+  res.send("✅ XAU-Sentinel Server Aktif & Stabil");
 });
 
-// Endpoint kirim pesan manual
+// Endpoint manual kirim Telegram
 app.post("/send", async (req, res) => {
   try {
     const { text } = req.body;
-    if (!text) return res.status(400).json({ error: "Text kosong" });
-
+    if (!text) return res.status(400).json({ error: "Text tidak boleh kosong" });
     await sendTelegramMessage(text);
-    return res.json({ status: "Pesan dikirim", text });
-  } catch (error) {
-    console.error("⚠ Error /send:", error);
-    return res.status(500).json({ error: "Gagal kirim, tapi server tetap hidup" });
+    res.json({ status: "Pesan dikirim", text });
+  } catch (err) {
+    console.error("❌ Error kirim:", err);
+    res.status(500).json({ error: "Gagal kirim Telegram" });
   }
 });
 
-// Global error handler (agar tidak crash)
+// Error handler global (hindari crash)
 app.use((err, req, res, next) => {
-  console.error("🔥 Error tak tertangkap:", err);
-  res.status(500).json({ error: "Server error, tetap hidup" });
+  console.error("🔥 Unhandled Error:", err);
+  res.status(500).send("Internal Server Error");
 });
-
-// Anti-sleep Railway (ping server setiap 5 menit)
-setInterval(() => {
-  fetch(`https://${process.env.RAILWAY_STATIC_URL}/`)
-    .then(() => console.log("💓 Keep-alive ping"))
-    .catch(() => {});
-}, 1000 * 60 * 5);
 
 // Jalankan server
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`✅ Server berjalan di port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`✅ Server berjalan di port ${PORT}`));
+
+// Keep-alive agar Railway tidak tidur
+setInterval(() => {
+  const url = process.env.RAILWAY_STATIC_URL;
+  if (url) fetch(url).then(() => console.log("🔄 Keep-alive ping"))
+    .catch(() => console.log("⚠ Gagal keep-alive"));
+}, 5 * 60 * 1000); // 5 menit

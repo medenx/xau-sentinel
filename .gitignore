@@ -1,6 +1,27 @@
+# Dependencies
 node_modules/
+
+# Logs
+*.log
+.sync.log
+.sync.log.*
+
+# Caches & temps
+.cache/
+.tmp/
+tmp/
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Env & local configs
 .env
-server.log
-npm-debug.log*
-*.bak
-*.old
+.env.local
+*.local
+
+# Editors
+.vscode/
+.idea/

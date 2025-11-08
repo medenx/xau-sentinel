@@ -6,44 +6,40 @@ require("dotenv").config();
 const app = express();
 app.use(bodyParser.json());
 
-// Root - cek server
+// Root endpoint
 app.get("/", (req, res) => {
-  res.send("✅ XAU-Sentinel Server Aktif");
+  res.send("✅ XAU-Sentinel Aktif & Stabil");
 });
 
-// Webhook dari Telegram
-app.post(`/webhook/${process.env.TELEGRAM_BOT_TOKEN}`, async (req, res) => {
+// Endpoint kirim pesan manual
+app.post("/send", async (req, res) => {
   try {
-    const message = req.body.message;
-    if (!message) return res.sendStatus(200);
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: "Text kosong" });
 
-    const chatId = message.chat.id;
-    const text = message.text;
-
-    if (text === "/start") {
-      await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: "✅ Bot aktif dan siap kirim sinyal otomatis 🚀"
-        })
-      });
-    }
-    res.sendStatus(200);
-  } catch (err) {
-    console.error("Webhook Error:", err);
-    res.sendStatus(500);
+    await sendTelegramMessage(text);
+    return res.json({ status: "Pesan dikirim", text });
+  } catch (error) {
+    console.error("⚠ Error /send:", error);
+    return res.status(500).json({ error: "Gagal kirim, tapi server tetap hidup" });
   }
 });
 
-// Endpoint manual kirim pesan (tetap ada)
-app.post("/send", async (req, res) => {
-  const { text } = req.body;
-  if (!text) return res.status(400).json({ error: "Text kosong" });
-  await sendTelegramMessage(text);
-  res.json({ status: "Pesan dikirim", text });
+// Global error handler (agar tidak crash)
+app.use((err, req, res, next) => {
+  console.error("🔥 Error tak tertangkap:", err);
+  res.status(500).json({ error: "Server error, tetap hidup" });
 });
 
+// Anti-sleep Railway (ping server setiap 5 menit)
+setInterval(() => {
+  fetch(`https://${process.env.RAILWAY_STATIC_URL}/`)
+    .then(() => console.log("💓 Keep-alive ping"))
+    .catch(() => {});
+}, 1000 * 60 * 5);
+
+// Jalankan server
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`✅ Server berjalan di port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`✅ Server berjalan di port ${PORT}`);
+});

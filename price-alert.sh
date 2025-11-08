@@ -28,7 +28,17 @@ while true; do
 
   LEVELS=$(get_key_levels)
   for LEVEL in $LEVELS; do
-    DIFF=$(echo "$PRICE - $LEVEL" | bc)
+    if [[ -n "$PRICE" ]]; then
+  DIFF=$(echo "$PRICE - $LEVEL" | bc -l)
+  ABS=$(echo "${DIFF#-}")
+  if [[ -z "$ABS" || "$ABS" == "." ]]; then
+    echo "[$DATE] ⚠️ Data tidak valid di LEVEL $LEVEL" | tee -a "$LOG"
+    continue
+  fi
+else
+  echo "[$DATE] ❌ Harga kosong (skip)" | tee -a "$LOG"
+  continue
+fi
     ABS_DIFF="${DIFF#-}"
 
     if (( $(echo "$ABS_DIFF < 1.00" | bc -l) )); then

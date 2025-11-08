@@ -18,7 +18,17 @@ fi
 echo "[$DATE] 🔍 Cek XAUUSD | $PRICE | Levels: ${LEVELS[*]}" | tee -a "$LOG"
 
 for LEVEL in "${LEVELS[@]}"; do
+  if [[ -n "$PRICE" ]]; then
   DIFF=$(echo "$PRICE - $LEVEL" | bc -l)
+  ABS=$(echo "${DIFF#-}")
+  if [[ -z "$ABS" || "$ABS" == "." ]]; then
+    echo "[$DATE] ⚠️ Data tidak valid di LEVEL $LEVEL" | tee -a "$LOG"
+    continue
+  fi
+else
+  echo "[$DATE] ❌ Harga kosong (skip)" | tee -a "$LOG"
+  continue
+fi
   ABS=$(echo "${DIFF#-}")
 
   # ✅ Pastikan angka valid (bukan kosong atau .)

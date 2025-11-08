@@ -1,24 +1,19 @@
-import express from "express";
-import fetch from "node-fetch";
+import express from 'express';
+import fetch from 'node-fetch';
 
 const app = express();
 const PORT = 3000;
 
-app.get("/xau", async (req, res) => {
+app.get('/xau', async (req, res) => {
   try {
-    const url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD=X";
-    const resp = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-      }
-    });
+    const resp = await fetch('https://api.metals.live/v1/spot/gold');
     const data = await resp.json();
-    const price = data?.quoteResponse?.result?.[0]?.regularMarketPrice;
+    const price = data?.[0]?.price;
 
-    if (!price) return res.json({ error: "Harga tidak ditemukan (data kosong)" });
-    res.json({ price });
-  } catch (err) {
-    res.json({ error: "Gagal ambil harga" });
+    if (!price) return res.json({ error: 'Harga emas tidak tersedia' });
+    res.json({ symbol: 'XAUUSD', price });
+  } catch (e) {
+    res.json({ error: 'Gagal ambil harga emas' });
   }
 });
 

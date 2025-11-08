@@ -1,20 +1,16 @@
 #!/bin/bash
 cd ~/xau-sentinel
 
-echo "====== CEK PERUBAHAN FILE ======"
-git status
-
-# Jika ada perubahan, langsung commit & push
+echo "🔍 CEK PERUBAHAN FILE..."
 if [[ -n $(git status --porcelain) ]]; then
   git add .
-  git commit -m "Auto-sync: update $(date '+%Y-%m-%d %H:%M:%S')"
+  git commit -m "Auto-sync: $(date '+%Y-%m-%d %H:%M:%S')"
   git push origin main
-  echo "✅ GitHub sudah diperbarui!"
+  echo "✅ Sinkron GitHub selesai."
 else
   echo "⏩ Tidak ada perubahan, skip push."
 fi
 
-echo "====== DEPLOY KE RAILWAY ======"
+echo "⚙️ Deploy ke Railway..."
 railway up --detach
-
-echo "====== DEPLOY COMPLETED ======"
+echo "✅ Railway berhasil di-deploy!"

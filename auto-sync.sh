@@ -1,6 +1,14 @@
 #!/bin/bash
 set -u
 PROJECT_DIR="$HOME/xau-sentinel"
+notify_telegram() {
+  ENV="$HOME/xau-sentinel/.env";
+  [ -f "$ENV" ] || return 0;
+  . "$ENV";
+  [ -z "$TELEGRAM_BOT_TOKEN" ] && return 0;
+  [ -z "$TELEGRAM_CHAT_ID" ] && return 0;
+  bash $HOME/xau-sentinel/tg-send.sh "$1" >/dev/null 2>&1 || true
+}
 LOG_FILE="$PROJECT_DIR/.sync.log"
 CONFLICT_LOG="$PROJECT_DIR/.conflict.log"
 BASE_INTERVAL=60         # interval dasar (detik)
@@ -35,7 +43,7 @@ protect_lock() {
   if [ -f ".git/index.lock" ]; then
     if ! pgrep -f "git " >/dev/null 2>&1; then
       rm -f ".git/index.lock"
-      log "🔓 index.lock ditemukan dan dihapus otomatis"
+      log "🔓 index.lock ditemukan dan dihapus otomatis"; notify_telegram "index.lock dibersihkan otomatis"
     else
       log "⏳ index.lock ada & git masih berjalan — menunggu"
       return 1
@@ -118,14 +126,14 @@ while true; do
 
   # Battery
   if ! battery_ok; then
-    log "🔋 Baterai <15% — pause 120 detik."
+    log "🔋 Baterai <15% — pause 120 detik."; notify_telegram "Baterai <15% \- sinkron pause"
     sleep 120
     continue
   fi
 
   # Internet
   if ! have_internet; then
-    log "🌐 Offline — retry nanti."
+    log "🌐 Offline — retry nanti."; notify_telegram "Offline: auto\-sync tunda"
     IDLE_COUNT=$(( IDLE_COUNT + 1 ))
     adaptive_sleep
     continue
@@ -152,10 +160,10 @@ while true; do
 
   # Pull (rebase + autostash) → fallback merge
   if ! git pull --rebase --autostash >> "$LOG_FILE" 2>&1; then
-    log "⚠️ Rebase gagal — fallback merge"
+    log "⚠️ Rebase gagal — fallback merge"; notify_telegram "Rebase gagal \- fallback merge"
     git rebase --abort >/dev/null 2>&1 || true
     if ! git pull --no-rebase >> "$LOG_FILE" 2>&1; then
-      log "❌ Pull gagal — akan dicoba ulang nanti."
+      log "❌ Pull gagal — akan dicoba ulang nanti."; notify_telegram "Pull gagal, akan retry"
       self_heal
       IDLE_COUNT=$(( IDLE_COUNT + 1 ))
       adaptive_sleep
@@ -177,7 +185,7 @@ while true; do
       log "✅ Push ke origin/main sukses."
       IDLE_COUNT=0
     else
-      log "❌ Push ke origin gagal."
+      log "❌ Push ke origin gagal."; notify_telegram "Push ke GitHub GAGAL"
       self_heal
       IDLE_COUNT=$(( IDLE_COUNT + 1 ))
       adaptive_sleep

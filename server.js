@@ -1,32 +1,43 @@
-const express = require('express');
-const axios = require('axios');
+const express = require("express");
+const axios = require("axios");
 const app = express();
 const PORT = 3000;
 
-// Ambil harga dari Metals.live (fallback API cepat)
-async function getGoldPrice() {
+// 1) Coba API Metals.live
+async function getGoldFromMetals() {
   try {
-    const { data } = await axios.get('https://api.metals.live/v1/spot');
-    return data[0].gold; // format: [{ gold: 4009.8, silver: xx }]
-  } catch (err) {
-    return null;
-  }
+    const { data } = await axios.get("https://api.metals.live/v1/spot");
+    if (Array.isArray(data) && data[0]?.gold) {
+      return parseFloat(data[0].gold);
+    }
+  } catch (e) {}
+  return null;
 }
 
-// Endpoint utama
-app.get('/xau', async (req, res) => {
-  const price = await getGoldPrice();
+// 2) Coba AlphaVantage (opsional jika punya API)
+async function getGoldFromAlpha() {
+  try {
+    const apiKey = process.env.ALPHA_API_KEY || "";
+    if (!apiKey) return null;
+    const url = `https://www.alphavantage.co/query?function=COMMODITY_EXCHANGE_RATE&from_symbol=XAU&to_symbol=USD&apikey=${apiKey}`;
+    const { data } = await axios.get(url);
+    return parseFloat(data?.RealtimeCommodityExchangeRate?.ExchangeRate);
+  } catch (e) {}
+  return null;
+}
+
+app.get("/xau", async (req, res) => {
+  let price = await getGoldFromMetals();
+  if (!price) price = await getGoldFromAlpha();
+
   if (!price) {
     return res.json({ error: "Gagal ambil harga emas" });
   }
   res.json({ symbol: "XAUUSD", price });
 });
 
-// Root cek server
-app.get('/', (req, res) => {
-  res.send("✅ XAU Proxy Server aktif. Gunakan /xau");
+app.get("/", (req, res) => {
+  res.send("✅ XAU Proxy berjalan. Gunakan /xau untuk ambil harga.");
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server berjalan di http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`✅ Proxy aktif di port ${PORT}`));

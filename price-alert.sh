@@ -3,17 +3,19 @@ ROOT="$HOME/xau-sentinel"
 PLAN="$ROOT/plans/$(date +%F).md"
 LOG="$ROOT/.price.log"
 
-log() { echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG"; }
+source "$ROOT/.env" 2>/dev/null
 
-# ✅ Ambil harga XAU/USD via finviz (tanpa HTTPS)
+log(){ echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG"; }
+
+# ✅ Ambil harga XAU/USD dari AlphaVantage
 get_price() {
-  curl -s http://finviz.com/fut_chart.ashx?t=GC | \
-  grep -o "last\":[0-9]*\.[0-9]*" | head -1 | cut -d':' -f2
+  curl -s "https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAU&to_currency=USD&apikey=$ALPHA_API_KEY" \
+  | grep -o '"5\. Exchange Rate": "[0-9]*\.[0-9]*' | cut -d '"' -f4
 }
 
 # ✅ Ambil Key Level dari Trading Plan
 get_key_levels() {
-  grep -i "Key Level" "$PLAN" | cut -d':' -f2- | tr -d ' ' | tr '/' ' ' | tr ',' ' '
+  grep -i "Key Level" "$PLAN" | cut -d':' -f2- | tr -d ' ' | tr '/' ' '
 }
 
 log "=== PRICE ALERT STARTED ($(date)) ==="
@@ -22,7 +24,7 @@ while true; do
   PRICE=$(get_price)
 
   if [ -z "$PRICE" ]; then
-    log "⚠️ Gagal ambil harga dari Finviz (non-SSL)"
+    log "⚠️ Gagal ambil harga dari AlphaVantage (limit/habis atau internet)"
     sleep 60
     continue
   fi
@@ -38,14 +40,13 @@ while true; do
     if (( $(echo "$ABS_DIFF < 0.50" | bc -l) )); then
       source "$ROOT/.env"
       MSG="⚠️ XAUUSD mendekati Key Level $LEVEL
-Harga saat ini: $PRICE
-Cek potensi sweep atau rejection."
-
-      curl -s -X POST "http://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+Harga: $PRICE
+Perhatikan sweep atau rejection."
+      curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
         -d chat_id="$TELEGRAM_CHAT_ID" \
         --data-urlencode text="$MSG" >/dev/null
 
-      log "📨 ALERT DIKIRIM: Level=$LEVEL | Price=$PRICE"
+      log "📨 ALERT TERKIRIM (Level=$LEVEL | Price=$PRICE)"
     fi
   done
 

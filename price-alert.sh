@@ -7,11 +7,12 @@ source "$ROOT/.env" 2>/dev/null
 
 log(){ echo "[$(date '+%H:%M:%S')] $1" | tee -a "$LOG"; }
 
-# ✅ Ambil harga dari proxy server lokal (http://localhost:3000/xau)
+# Ambil harga dari proxy server Yahoo Finance (lokal)
 get_price() {
   curl -s http://localhost:3000/xau | grep -o '"price":[0-9]*\.[0-9]*' | cut -d':' -f2
 }
 
+# Ambil key level dari trading plan
 get_key_levels() {
   grep -i "Key Level" "$PLAN" | cut -d':' -f2- | tr -d ' ' | tr '/' ' '
 }
@@ -35,9 +36,9 @@ while true; do
     DIFF=$(echo "$PRICE - $LEVEL" | bc)
     ABS_DIFF="${DIFF#-}"
 
-    if (( $(echo "$ABS_DIFF < 0.50" | bc -l) )); then
+    if (( $(echo "$ABS_DIFF < 1.00" | bc -l) )); then
       MSG="⚠️ XAUUSD mendekati Key Level $LEVEL
-Harga: $PRICE
+Harga sekarang: $PRICE
 Waspada sweep atau rejection."
 
       curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \

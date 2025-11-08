@@ -5,9 +5,11 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+const GOLDAPI_KEY = process.env.GOLDAPI_KEY;
 const ALPHA = process.env.ALPHA_KEY;
 
-// === Source 1: Yahoo Finance ===
+// Yahoo Finance
 const yahoo = async () => {
   try {
     const r = await fetch("https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD=X");
@@ -16,7 +18,7 @@ const yahoo = async () => {
   } catch { return null; }
 };
 
-// === Source 2: AlphaVantage ===
+// AlphaVantage
 const alpha = async () => {
   try {
     const r = await fetch(
@@ -27,13 +29,23 @@ const alpha = async () => {
   } catch { return null; }
 };
 
+// GoldAPI ✓ fallback paling akurat
+const goldapi = async () => {
+  try {
+    const r = await fetch("https://www.goldapi.io/api/XAU/USD", {
+      headers: { "x-access-token": GOLDAPI_KEY, "Content-Type": "application/json" }
+    });
+    const d = await r.json();
+    return d?.price || null;
+  } catch { return null; }
+};
+
 app.get("/xau", async (_, res) => {
   let price = await yahoo();
   if (!price) price = await alpha();
+  if (!price) price = await goldapi();
   if (!price) return res.json({ error: "Semua sumber gagal" });
   res.json({ price });
 });
 
-app.listen(PORT, () =>
-  console.log(`✅ Proxy XAU aktif di port ${PORT}`)
-);
+app.listen(PORT, () => console.log(`✅ Proxy XAU aktif di port ${PORT}`));

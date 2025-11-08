@@ -6,16 +6,13 @@ const { sendTelegramMessage } = require("./utils/telegram");
 const app = express();
 app.use(bodyParser.json());
 
-// Root
 app.get("/", (req, res) => {
   res.send("✅ XAU-Sentinel Server Aktif");
 });
 
-// POST /send (INI WAJIB ADA BIAR TIDAK ERROR)
 app.post("/send", async (req, res) => {
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: "Text tidak boleh kosong" });
-
   await sendTelegramMessage(text);
   res.json({ status: "Pesan dikirim", text });
 });

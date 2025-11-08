@@ -10,7 +10,7 @@ let last_update_id = 0;
 const app = express();
 app.use(bodyParser.json());
 
-app.get("/", (req, res) => res.send("✅ Server aktif dengan polling stabil"));
+app.get("/", (req, res) => res.send("✅ Server & Polling Aktif"));
 
 app.post("/send", async (req, res) => {
   await sendTelegramMessage(req.body.text);
@@ -25,12 +25,10 @@ async function pollTelegram() {
 
     data.result.forEach(async (update) => {
       last_update_id = update.update_id;
-
-      const message = update.message;
-      if (!message || !message.text) return;
-
-      const chatId = message.chat.id;
-      const text = message.text;
+      const msg = update.message;
+      if (!msg || !msg.text) return;
+      const chatId = msg.chat.id;
+      const text = msg.text.trim();
 
       if (text === "/start") {
         await sendTelegramMessage("✅ Bot aktif, siap membantu!", chatId);

@@ -1,0 +1,304 @@
+//======================================================================
+//  Clean SMC + LTF Entry Confirmation + Mini Scanner
+//  Features: BOS/CHoCH • Order Block • FVG • EQ 50% • LTF Entry • Pair Scanner
+//  Anti-repaint: bar close evaluation + request.security(..., lookahead = barmerge.lookahead_off)
+//======================================================================
+//@version=5
+indicator("Clean SMC + LTF Entry + Scanner [Stable]", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500)
+
+//=========================
+// Inputs – Core Settings
+//=========================
+groupCore   = "Core Structure"
+tfStruct    = input.timeframe("240", "Structure Timeframe (HTF)", group=groupCore, tooltip="Timeframe struktur (mis. 240 = H4). Kosongkan untuk pakai timeframe chart.")
+lenSwing    = input.int(5, "Swing Strength", minval=2, maxval=20, group=groupCore)
+showLabels  = input.bool(true, "Show Labels (HH/HL/LH/LL, BOS/CHoCH)", group=groupCore)
+showZones   = input.bool(true, "Show EQ 50% Premium/Discount", group=groupCore)
+
+//=========================
+// Inputs – Components
+//=========================
+groupComp   = "Components"
+useBOS      = input.bool(true, "Show BOS / CHoCH", group=groupComp)
+useOB       = input.bool(true, "Show Order Blocks", group=groupComp)
+useFVG      = input.bool(true, "Show Fair Value Gaps (FVG)", group=groupComp)
+visFVG      = input.int(3, "Max Visible FVG / Side", minval=1, maxval=20, group=groupComp)
+
+//=========================
+// Inputs – Visual Styling
+//=========================
+groupStyle  = "Styling"
+colBull     = input.color(color.new(color.lime, 0), "Bullish Color", group=groupStyle)
+colBear     = input.color(color.new(color.red, 0), "Bearish Color", group=groupStyle)
+colOBBull   = input.color(color.new(color.blue, 85), "Bullish OB", group=groupStyle)
+colOBBear   = input.color(color.new(color.orange, 85), "Bearish OB", group=groupStyle)
+colFVGBl    = input.color(color.new(color.teal, 85),  "Bullish FVG", group=groupStyle)
+colFVGBr    = input.color(color.new(color.maroon, 85), "Bearish FVG", group=groupStyle)
+
+//=========================
+// Inputs – Alerts
+//=========================
+groupAlert  = "Alerts"
+alBOS       = input.bool(true, "Alert on BOS", group=groupAlert)
+alCHoCH     = input.bool(true, "Alert on CHoCH", group=groupAlert)
+alFVG       = input.bool(true, "Alert on FVG", group=groupAlert)
+alOBTouch   = input.bool(true, "Alert on OB Mitigation", group=groupAlert)
+
+//=========================
+// Inputs – LTF Entry Confirmation
+//=========================
+groupLTF       = "LTF Entry Confirmation"
+useEntryConf   = input.bool(true, "Use LTF Entry Confirmation", group=groupLTF, tooltip="Konfirmasi entry di LTF (CHoCH sederhana + proximity ke OB).")
+entryTF        = input.timeframe("5", "Execution Timeframe (LTF)", group=groupLTF, tooltip="Timeframe eksekusi/konfirmasi (mis. 5=5m, 1=1m).")
+entrySwing     = input.int(3, "LTF Swing Strength", minval=2, maxval=10, group=groupLTF)
+atrLen         = input.int(14, "ATR Length (buffer)", minval=5, maxval=50, group=groupLTF)
+atrBufPct      = input.float(0.10, "Buffer vs ATR (0.10=10%)", minval=0.01, maxval=0.5, step=0.01, group=groupLTF)
+
+//=========================
+// Inputs – Mini Scanner (safe defaults to avoid limits)
+//=========================
+groupScan   = "Mini Scanner (up to 6 pairs)"
+useScanner  = input.bool(false, "Enable Mini Scanner (table)", group=groupScan, tooltip="Batas aman security < 40. Aktifkan bila diperlukan.")
+s1 = input.symbol("", "Symbol 1", group=groupScan)
+s2 = input.symbol("", "Symbol 2", group=groupScan)
+s3 = input.symbol("", "Symbol 3", group=groupScan)
+s4 = input.symbol("", "Symbol 4", group=groupScan)
+s5 = input.symbol("", "Symbol 5", group=groupScan)
+s6 = input.symbol("", "Symbol 6", group=groupScan)
+
+//=========================
+// Source Mapping (HTF)
+//=========================
+srcH = request.security(syminfo.tickerid, tfStruct == "" ? timeframe.period : tfStruct, high,  lookahead=barmerge.lookahead_off)
+srcL = request.security(syminfo.tickerid, tfStruct == "" ? timeframe.period : tfStruct, low,   lookahead=barmerge.lookahead_off)
+srcC = request.security(syminfo.tickerid, tfStruct == "" ? timeframe.period : tfStruct, close, lookahead=barmerge.lookahead_off)
+srcO = request.security(syminfo.tickerid, tfStruct == "" ? timeframe.period : tfStruct, open,  lookahead=barmerge.lookahead_off)
+
+//=========================
+// EQ / Premium-Discount 50%
+//=========================
+mid = (ta.highest(srcH, 100) + ta.lowest(srcL, 100)) / 2.0
+plot(showZones ? mid : na, "EQ 50%", color=color.new(color.silver, 40), linewidth=1, style=plot.style_circles)
+bgcolor(showZones and close > mid ? color.new(color.green, 95) : showZones and close < mid ? color.new(color.red, 95) : na)
+
+//=========================
+// Swing Point Detection (Pivot) on HTF series
+//=========================
+float ph = ta.pivothigh(srcH, lenSwing, lenSwing)
+float pl = ta.pivotlow(srcL,  lenSwing, lenSwing)
+
+var float lastSwingHigh = na
+var float lastSwingLow  = na
+var int   lastSwingHBar = na
+var int   lastSwingLBar = na
+
+if not na(ph)
+    lastSwingHigh := ph
+    lastSwingHBar := bar_index - lenSwing
+    if showLabels
+        label.new(lastSwingHBar, lastSwingHigh, "HH/LH", style=label.style_label_down, textcolor=colBear, size=size.tiny)
+if not na(pl)
+    lastSwingLow  := pl
+    lastSwingLBar := bar_index - lenSwing
+    if showLabels
+        label.new(lastSwingLBar, lastSwingLow, "LL/HL", style=label.style_label_up, textcolor=colBull, size=size.tiny)
+
+//=========================
+// BOS / CHoCH Detection
+//=========================
+var int dir = 0 // +1 = bullish, -1 = bearish
+
+bosBull   = useBOS and not na(lastSwingHigh) and srcC > lastSwingHigh
+bosBear   = useBOS and not na(lastSwingLow)  and srcC < lastSwingLow
+chochBull = bosBull and dir != 1
+chochBear = bosBear and dir != -1
+
+if bosBull
+    dir := 1
+if bosBear
+    dir := -1
+
+if showLabels and bosBull
+    label.new(bar_index, close, "BOS↑", style=label.style_label_up, color=color.new(color.white, 100), textcolor=colBull)
+if showLabels and bosBear
+    label.new(bar_index, close, "BOS↓", style=label.style_label_down, color=color.new(color.white, 100), textcolor=colBear)
+if showLabels and chochBull
+    label.new(bar_index, close, "CHoCH↑", style=label.style_label_up, color=color.new(color.white, 100), textcolor=colBull)
+if showLabels and chochBear
+    label.new(bar_index, close, "CHoCH↓", style=label.style_label_down, color=color.new(color.white, 100), textcolor=colBear)
+
+//=========================
+// Simple Order Block (last opposite candle before BOS)
+//=========================
+var box obBull = na
+var box obBear = na
+
+// On bullish BOS -> take last bearish candle body as OB
+if bosBull
+    int found = na
+    for i = 1 to 10
+        if srcC[i] < srcO[i]
+            found := i
+            break
+    if not na(found)
+        if not na(obBull)
+            box.delete(obBull)
+        float top = math.max(srcO[found], srcC[found])
+        float bot = math.min(srcO[found], srcC[found])
+        obBull := box.new(bar_index - found, top, bar_index, bot, bgcolor=colOBBull, border_color=color.new(colBull, 40), extend=extend.right)
+
+// On bearish BOS -> take last bullish candle body as OB
+if bosBear
+    int found2 = na
+    for i = 1 to 10
+        if srcC[i] > srcO[i]
+            found2 := i
+            break
+    if not na(found2)
+        if not na(obBear)
+            box.delete(obBear)
+        float top2 = math.max(srcO[found2], srcC[found2])
+        float bot2 = math.min(srcO[found2], srcC[found2])
+        obBear := box.new(bar_index - found2, top2, bar_index, bot2, bgcolor=colOBBear, border_color=color.new(colBear, 40), extend=extend.right)
+
+// OB Mitigation highlight on touch
+if useOB and not na(obBull) and low <= box.get_bottom(obBull)
+    box.set_bgcolor(obBull, color.new(colOBBull, 92))
+if useOB and not na(obBear) and high >= box.get_top(obBear)
+    box.set_bgcolor(obBear, color.new(colOBBear, 92))
+
+//=========================
+// Fair Value Gap (3-candle FVG)
+//=========================
+var box[] fvgBull = array.new_box()
+var box[] fvgBear = array.new_box()
+
+// Bullish FVG (low of current > high of two bars ago)
+if useFVG and low > high[2]
+    b = box.new(bar_index - 2, high[2], bar_index, low, bgcolor=colFVGBl, border_color=color.new(colBull, 40), extend=extend.right)
+    array.unshift(fvgBull, b)
+    if array.size(fvgBull) > visFVG
+        box.delete(array.pop(fvgBull))
+
+// Bearish FVG (high of current < low of two bars ago)
+if useFVG and high < low[2]
+    b2 = box.new(bar_index - 2, high, bar_index, low[2], bgcolor=colFVGBr, border_color=color.new(colBear, 40), extend=extend.right)
+    array.unshift(fvgBear, b2)
+    if array.size(fvgBear) > visFVG
+        box.delete(array.pop(fvgBear))
+
+//=========================
+// LTF Entry Confirmation (CHOCH + proximity to OB using ATR buffer on chart TF)
+//=========================
+var label ltfSignal = na
+if useEntryConf
+    ltfC = request.security(syminfo.tickerid, entryTF, close,  lookahead=barmerge.lookahead_off)
+    ltfH = request.security(syminfo.tickerid, entryTF, high,   lookahead=barmerge.lookahead_off)
+    ltfL = request.security(syminfo.tickerid, entryTF, low,    lookahead=barmerge.lookahead_off)
+
+    lph = ta.pivothigh(ltfH, entrySwing, entrySwing)
+    lpl = ta.pivotlow(ltfL, entrySwing, entrySwing)
+
+    var float ltfLastHigh = na
+    var float ltfLastLow  = na
+    if not na(lph)
+        ltfLastHigh := lph
+    if not na(lpl)
+        ltfLastLow  := lpl
+
+    atrVal   = ta.atr(atrLen)
+    bufRange = atrVal * atrBufPct
+
+    nearBullOB = useOB and not na(obBull) and not na(ltfC) and math.abs(ltfC - box.get_bottom(obBull)) <= bufRange
+    nearBearOB = useOB and not na(obBear) and not na(ltfC) and math.abs(ltfC - box.get_top(obBear))    <= bufRange
+
+    ltfBreakUp   = not na(ltfLastHigh) and ltfC > ltfLastHigh
+    ltfBreakDown = not na(ltfLastLow)  and ltfC < ltfLastLow
+
+    validLong  = (dir == 1)  and nearBullOB and ltfBreakUp
+    validShort = (dir == -1) and nearBearOB and ltfBreakDown
+
+    if showLabels
+        if not na(ltfSignal)
+            label.delete(ltfSignal)
+        if validLong
+            ltfSignal := label.new(bar_index, close, "ENTRY ✓ (LTF)", textcolor=colBull, color=color.new(color.white, 100), style=label.style_label_up, size=size.small)
+        else if validShort
+            ltfSignal := label.new(bar_index, close, "ENTRY ✓ (LTF)", textcolor=colBear, color=color.new(color.white, 100), style=label.style_label_down, size=size.small)
+
+//=========================
+// Mini Scanner
+//=========================
+var table scanTbl = na
+if useScanner
+    if na(scanTbl)
+        scanTbl := table.new(position.top_right, 5, 8, border_width=1)
+        table.cell(scanTbl, 0, 0, "Symbol", text_color=color.white, bgcolor=color.new(color.silver, 10))
+        table.cell(scanTbl, 1, 0, "Trend",  text_color=color.white, bgcolor=color.new(color.silver, 10))
+        table.cell(scanTbl, 2, 0, "BOS",    text_color=color.white, bgcolor=color.new(color.silver, 10))
+        table.cell(scanTbl, 3, 0, "OB?",    text_color=color.white, bgcolor=color.new(color.silver, 10))
+        table.cell(scanTbl, 4, 0, "Last",   text_color=color.white, bgcolor=color.new(color.silver, 10))
+
+    syms = array.from(s1, s2, s3, s4, s5, s6)
+    for row = 1 to array.size(syms)
+        sym = array.get(syms, row - 1)
+        if str.length(sym) > 0
+            sH = request.security(sym, tfStruct == "" ? timeframe.period : tfStruct, high,  lookahead=barmerge.lookahead_off)
+            sL = request.security(sym, tfStruct == "" ? timeframe.period : tfStruct, low,   lookahead=barmerge.lookahead_off)
+            sC = request.security(sym, tfStruct == "" ? timeframe.period : tfStruct, close, lookahead=barmerge.lookahead_off)
+            sO = request.security(sym, tfStruct == "" ? timeframe.period : tfStruct, open,  lookahead=barmerge.lookahead_off)
+
+            sPH = ta.pivothigh(sH, lenSwing, lenSwing)
+            sPL = ta.pivotlow(sL, lenSwing, lenSwing)
+
+            var float sLastH = na
+            var float sLastL = na
+            if not na(sPH)
+                sLastH := sPH
+            if not na(sPL)
+                sLastL := sPL
+
+            sBosUp = useBOS and not na(sLastH) and sC > sLastH
+            sBosDn = useBOS and not na(sLastL) and sC < sLastL
+            sDir   = sBosUp ? 1 : sBosDn ? -1 : 0
+
+            // crude heuristic for OB existence: look back 10 bars for opposite body before BOS
+            hasOB = false
+            if sBosUp
+                for i = 1 to 10
+                    if sC[i] < sO[i]
+                        hasOB := true
+                        break
+            if sBosDn and not hasOB
+                for i = 1 to 10
+                    if sC[i] > sO[i]
+                        hasOB := true
+                        break
+
+            trendTxt = sDir == 1 ? "Bull" : sDir == -1 ? "Bear" : "-"
+            bosTxt   = sBosUp ? "BOS↑" : sBosDn ? "BOS↓" : "-"
+            obTxt    = hasOB ? "Yes" : "No"
+            tcol     = sDir == 1 ? colBull : sDir == -1 ? colBear : color.silver
+
+            table.cell(scanTbl, 0, row, sym,  text_color=color.white)
+            table.cell(scanTbl, 1, row, trendTxt, text_color=tcol)
+            table.cell(scanTbl, 2, row, bosTxt,   text_color=tcol)
+            table.cell(scanTbl, 3, row, obTxt,    text_color=tcol)
+            table.cell(scanTbl, 4, row, str.tostring(sC, format.mintick), text_color=color.white)
+
+//=========================
+// Alerts
+//=========================
+alertcondition(alBOS   and bosBull, "BOS Bullish", "Bullish BOS confirmed.")
+alertcondition(alBOS   and bosBear, "BOS Bearish", "Bearish BOS confirmed.")
+alertcondition(alCHoCH and chochBull, "CHoCH Bullish", "Bullish CHoCH confirmed.")
+alertcondition(alCHoCH and chochBear, "CHoCH Bearish", "Bearish CHoCH confirmed.")
+alertcondition(alFVG   and (low > high[2]), "FVG Bullish", "Bullish FVG formed.")
+alertcondition(alFVG   and (high < low[2]), "FVG Bearish", "Bearish FVG formed.")
+alertcondition(alOBTouch and useOB and not na(obBull) and low <= box.get_bottom(obBull), "OB Mitigation (Bullish)", "Price touched Bullish OB.")
+alertcondition(alOBTouch and useOB and not na(obBear) and high >= box.get_top(obBear), "OB Mitigation (Bearish)", "Price touched Bearish OB.")
+
+// Notes:
+// - Gunakan "Once Per Bar Close" pada alert untuk anti-repaint.
+// - LTF Entry: sinyal saat dekat OB + CHoCH LTF searah HTF.
+// - Scanner: batasi input symbol agar tidak melebihi batas security calls (<= 40).
